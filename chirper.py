@@ -12,6 +12,7 @@ country = "Turkey"
 max_tweets = 1000000
 tweets_per_query = 100
 filename = 'tweets'
+include_fields = ["text", "lang", "created_at"]
 
 
 class Chirper():
@@ -54,14 +55,21 @@ class Chirper():
         """
         self.auth()
         self.build_search_query()
+        # Wrap json output to make it valid!
+        with open("{0}.json".format(filename), 'a+') as j:
+            j.write('{\n"tweets":[\n')
         while self.tweet_count < max_tweets:
             try:
                 with open("{0}.json".format(filename), 'a+') as j, open("{0}.csv".format(filename), 'a+') as c:
                     for tweet in tweepy.Cursor(self.twitter_api.search, q=self.search_query).items(max_tweets):
                         if tweet.place is not None:
-                            j.write(jsonpickle.encode(tweet._json, unpicklable=False) + ',\n')
-                            c.write(jsonpickle.encode(tweet._json["text"], unpicklable=False) + ','
-                                    + jsonpickle.encode(tweet._json["created_at"]) + '\n')
+                            json = dict()
+                            for key in include_fields:
+                                if key in tweet._json:
+                                    json[key] = tweet._json[key]
+                            print(str(jsonpickle.encode(json, unpicklable=False)))
+                            j.write(jsonpickle.encode(json, unpicklable=False) + ',\n')
+                            c.write((",".join(json.values())) + '\n')
                             self.tweet_count += 1
                         if self.tweet_count % 1000:
                             print("Downloaded {0} tweets so far...".format(self.tweet_count))
@@ -70,6 +78,9 @@ class Chirper():
                 # Auth with different credentials so that we can try to continue downloading!
                 self.auth()
             print("Downloaded {0} tweets! Saved to {1}".format(self.tweet_count, filename))
+        # End wrapper.
+        with open("{0}.json".format(filename), 'a+') as j:
+            j.write('{}\n]\n}')
 
 
 if __name__ == '__main__':
